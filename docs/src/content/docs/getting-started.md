@@ -64,8 +64,10 @@ curl -sI https://<your-app>.azurewebsites.net/                   # → 302 redir
 ```shell
 azurite --silent &
 cp src/Regnroll.App/local.settings.sample.json src/Regnroll.App/local.settings.json
-func start --project src/Regnroll.App
-dotnet test
+cd src/Regnroll.App
+func start        # Core Tools resolves the app root from the current directory
 ```
+
+Run the tests from the repo root with `dotnet test`.
 
 Outside Azure the admin surface is open (no EasyAuth locally); Graph and email calls use your `az login` credentials via `DefaultAzureCredential`.

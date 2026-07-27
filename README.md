@@ -41,8 +41,8 @@ Full documentation (deployment, permission setup, admin & customer guides, autom
 ```shell
 azurite --silent &                                # local table storage
 cp src/Regnroll.App/local.settings.sample.json src/Regnroll.App/local.settings.json
-func start --project src/Regnroll.App             # or: dotnet build && func start
-dotnet test                                       # unit + integration tests
+cd src/Regnroll.App && func start                 # func resolves the app root from the current directory
+dotnet test                                       # unit + integration tests (from the repo root)
 ```
 
 ## License
