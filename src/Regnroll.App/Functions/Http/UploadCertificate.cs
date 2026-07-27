@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
+using Regnroll.App.Infrastructure;
 using Regnroll.App.Services;
 
 namespace Regnroll.App.Functions.Http;
@@ -33,7 +34,7 @@ public class UploadCertificate(IDeliveryService delivery, ILogger<UploadCertific
         }
         else
         {
-            var body = await req.ReadFromJsonAsync<UploadRequest>(ct);
+            var body = await RequestJson.ReadOrNullAsync<UploadRequest>(req, ct);
             token = body?.Token;
             certificate = body?.Certificate;
         }

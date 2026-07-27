@@ -35,7 +35,7 @@ public class AdminTemplates(ITemplateService templates)
             return AdminAuth.Unauthorized();
         }
 
-        var body = await req.ReadFromJsonAsync<TemplateRequest>(ct);
+        var body = await RequestJson.ReadOrNullAsync<TemplateRequest>(req, ct);
         if (string.IsNullOrWhiteSpace(body?.Subject) || string.IsNullOrWhiteSpace(body.HtmlBody))
         {
             return new BadRequestObjectResult(new { error = "invalid_request", message = "Both 'subject' and 'htmlBody' are required." });

@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Functions.Worker;
+using Regnroll.App.Infrastructure;
 using Regnroll.App.Services;
 
 namespace Regnroll.App.Functions.Http;
@@ -27,7 +28,7 @@ public class ClaimSecret(IDeliveryService delivery)
         }
         else
         {
-            var body = await req.ReadFromJsonAsync<ClaimRequest>(ct);
+            var body = await RequestJson.ReadOrNullAsync<ClaimRequest>(req, ct);
             id = body?.Id;
             key = body?.Key;
         }

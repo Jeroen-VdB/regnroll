@@ -194,6 +194,7 @@ resource functionApp 'Microsoft.Web/sites@2024-04-01' = {
       minTlsVersion: '1.2'
       appSettings: [
         { name: 'AzureWebJobsStorage__accountName', value: hostStorage.name }
+        { name: 'AzureWebJobsDisableHomepage', value: 'true' }
         { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsights.properties.ConnectionString }
         { name: 'REGNROLL_TIMER_SCHEDULE', value: timerSchedule }
         { name: 'Regnroll__PublicBaseUrl', value: 'https://${functionAppName}.azurewebsites.net' }

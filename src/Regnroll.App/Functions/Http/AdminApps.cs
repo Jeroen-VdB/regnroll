@@ -91,7 +91,7 @@ public class AdminApps(
             return AdminAuth.Unauthorized();
         }
 
-        var body = await req.ReadFromJsonAsync<LinkRequest>(ct);
+        var body = await RequestJson.ReadOrNullAsync<LinkRequest>(req, ct);
         var contacts = ParseContacts(body?.ContactEmails);
         if (contacts is null)
         {
@@ -172,7 +172,7 @@ public class AdminApps(
             return new NotFoundObjectResult(new { error = "not_linked", message = "This app registration is not linked." });
         }
 
-        var body = await req.ReadFromJsonAsync<SettingsRequest>(ct);
+        var body = await RequestJson.ReadOrNullAsync<SettingsRequest>(req, ct);
         if (body is null)
         {
             return new BadRequestObjectResult(new { error = "invalid_request", message = "A JSON body is required." });
