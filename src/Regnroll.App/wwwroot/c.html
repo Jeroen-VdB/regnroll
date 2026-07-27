@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Upload certificate — Regnroll</title>
+  <link rel="stylesheet" href="/assets/site.css">
+</head>
+<body>
+<main class="card">
+  <h1>Certificate upload</h1>
+
+  <div id="intro">
+    <p>Upload the <strong>public part</strong> of your new certificate (<code>.cer</code> or <code>.pem</code>).
+      It will be added to your application's registration — your current certificate is <strong>not</strong> removed,
+      so you can switch over at your own pace.</p>
+    <p class="warn">Never upload a private key or a PFX/PKCS#12 file. Only the public certificate is needed, and
+      uploads containing private key material are rejected.</p>
+
+    <label for="file">Certificate file</label>
+    <input type="file" id="file" accept=".cer,.pem,.crt,.der">
+    <label for="pem">…or paste PEM text</label>
+    <textarea id="pem" placeholder="-----BEGIN CERTIFICATE-----"></textarea>
+    <p><button id="upload">Upload certificate</button></p>
+    <p id="status" class="error hidden"></p>
+  </div>
+
+  <div id="result" class="hidden">
+    <h2 class="ok">Certificate accepted ✓</h2>
+    <p>Thumbprint: <code id="thumbprint"></code></p>
+    <p>Valid until: <span id="notAfter"></span></p>
+    <p>The certificate has been added to the app registration. Switch your application to the new key pair before
+      the old certificate expires — the old one stays in place until then.</p>
+  </div>
+
+  <div id="final" class="hidden">
+    <p id="finalMessage" class="error"></p>
+    <p class="muted">If you believe this is a mistake, contact the IT support team that manages this application.</p>
+  </div>
+
+  <details>
+    <summary>Automate this upload (for machines)</summary>
+    <p class="muted">POST the base64 of the DER certificate (or the PEM text) with the token from this URL:</p>
+    <pre id="curl" class="codeblock"></pre>
+  </details>
+</main>
+
+<script>
+  const token = location.pathname.split('/').filter(Boolean).pop();
+  const $ = (s) => document.querySelector(s);
+
+  $('#curl').textContent =
+    `curl -sS -X POST ${location.origin}/api/upload \\\n` +
+    `  -H "Content-Type: application/json" \\\n` +
+    `  -d "{\\"token\\":\\"${token}\\",\\"certificate\\":\\"$(base64 -w0 mycert.cer)\\"}"`;
+
+  async function readCertificate() {
+    const file = $('#file').files[0];
+    if (file) {
+      const text = await file.text();
+      if (text.includes('-----BEGIN')) return text;
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      let bin = '';
+      for (let i = 0; i < bytes.length; i += 0x8000) {
+        bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+      }
+      return btoa(bin);
+    }
+    return $('#pem').value.trim();
+  }
+
+  $('#upload').addEventListener('click', async () => {
+    const certificate = await readCertificate();
+    if (!certificate) {
+      $('#status').textContent = 'Choose a certificate file or paste PEM text first.';
+      $('#status').classList.remove('hidden');
+      return;
+    }
+    $('#upload').disabled = true;
+    $('#status').classList.add('hidden');
+    try {
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, certificate }),
+      });
+      const body = await res.json();
+      if (res.ok) {
+        $('#intro').classList.add('hidden');
+        $('#result').classList.remove('hidden');
+        $('#thumbprint').textContent = body.thumbprint;
+        $('#notAfter').textContent = body.notAfter ? new Date(body.notAfter).toISOString().slice(0, 10) : '';
+      } else if (body.error === 'invalid_certificate' || body.error === 'server_error' || body.error === 'too_large') {
+        $('#status').textContent = body.message;
+        $('#status').classList.remove('hidden');
+        $('#upload').disabled = false;
+      } else {
+        $('#intro').classList.add('hidden');
+        $('#final').classList.remove('hidden');
+        $('#finalMessage').textContent = body.message ?? 'This upload link is no longer valid.';
+      }
+    } catch {
+      $('#status').textContent = 'Network error — please try again.';
+      $('#status').classList.remove('hidden');
+      $('#upload').disabled = false;
+    }
+  });
+</script>
+</body>
+</html>

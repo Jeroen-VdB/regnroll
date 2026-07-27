@@ -1,0 +1,44 @@
+---
+title: Regnroll
+description: Entra ID app registration secret & certificate automation — rotate early, deliver through one-time encrypted links, warn stragglers, clean up expired credentials.
+template: splash
+hero:
+  tagline: App registration secrets and certificates, rotated and delivered automatically — inside one cheap, self-hostable Azure Function.
+  actions:
+    - text: Get started
+      link: /getting-started/
+      icon: right-arrow
+    - text: Security model
+      link: /security-model/
+      icon: seti:lock
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+<CardGrid stagger>
+  <Card title="Rotate before it breaks" icon="approve-check">
+    A daily scan creates replacement client secrets 30 days before expiry (configurable per app) and
+    requests replacement certificates from your customers.
+  </Card>
+  <Card title="Scanner-proof one-time links" icon="seti:lock">
+    Secrets are stored AES-256-GCM encrypted only; the key lives exclusively in the emailed URL.
+    Retrieval requires an explicit POST — corporate email scanners can never burn a link.
+  </Card>
+  <Card title="Zero-effort automation" icon="setting">
+    The same POST that powers the retrieval page is a machine API: your customers can claim new
+    secrets with one curl command, with no setup from you.
+  </Card>
+  <Card title="Least privilege by default" icon="shield">
+    The managed identity uses <code>Application.ReadWrite.OwnedBy</code> and only manages app
+    registrations it owns. Tenant-wide mode is a deliberate opt-in.
+  </Card>
+  <Card title="Cheap and simple" icon="rocket">
+    One Flex Consumption function app, two storage accounts, pay-per-email Azure Communication
+    Services. Deployed with a single <code>azd up</code>. No Key Vault by design.
+  </Card>
+  <Card title="Configurable notifications" icon="email">
+    Four email templates (new secret, new certificate, warning, expired) editable from the admin
+    portal without redeploying.
+  </Card>
+</CardGrid>

@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Regnroll admin</title>
+  <link rel="stylesheet" href="/assets/site.css">
+</head>
+<body>
+<main class="card wide">
+  <div class="toolbar">
+    <h1 style="margin:0">Regnroll <span class="muted" style="font-weight:400">· app registration credential automation</span></h1>
+    <div>
+      <button id="runScan" class="secondary">Run lifecycle scan now</button>
+      <button id="refresh" class="secondary">Refresh</button>
+    </div>
+  </div>
+
+  <div id="apps">Loading app registrations…</div>
+
+  <h2 style="margin-top:32px">Email templates</h2>
+  <p class="muted">Overrides apply immediately, no redeploy. Variables:
+    <code>{regnroll_url}</code> <code>{credential_type}</code> <code>{expiry_date}</code>
+    <code>{client_id}</code> <code>{client_name}</code> <code>{token_endpoint}</code></p>
+  <div class="formrow">
+    <div style="max-width:220px">
+      <label for="tplKey">Template</label>
+      <select id="tplKey"></select>
+    </div>
+    <div><label for="tplSubject">Subject</label><input id="tplSubject"></div>
+  </div>
+  <label for="tplBody">HTML body</label>
+  <textarea id="tplBody"></textarea>
+  <p>
+    <button id="tplSave">Save override</button>
+    <button id="tplReset" class="danger">Reset to default</button>
+    <span id="tplState" class="muted"></span>
+  </p>
+</main>
+
+<div id="toast" class="hidden"></div>
+
+<script>
+  const $ = (s) => document.querySelector(s);
+  const esc = (s) => (s ?? '').toString().replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const day = (d) => d ? new Date(d).toISOString().slice(0, 10) : '—';
+
+  let toastTimer;
+  function toast(message, isError) {
+    const t = $('#toast');
+    t.textContent = message;
+    t.classList.toggle('error', !!isError);
+    t.classList.remove('hidden');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.add('hidden'), 6000);
+  }
+
+  async function api(method, url, body) {
+    const res = await fetch(url, {
+      method,
+      headers: body ? { 'Content-Type': 'application/json' } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    let data = null;
+    try { data = await res.json(); } catch { /* empty body */ }
+    if (!res.ok) throw new Error(data?.message ?? `${method} ${url} failed (${res.status})`);
+    return data;
+  }
+
+  // ---------- apps ----------
+  async function loadApps() {
+    try {
+      const apps = await api('GET', '/api/admin/apps');
+      renderApps(apps);
+    } catch (e) {
+      $('#apps').innerHTML = `<p class="error">${esc(e.message)}</p>`;
+    }
+  }
+
+  function linkPill(l) {
+    const cls = l.expired || l.status !== 'Pending' ? (l.status === 'Pending' ? 'dead' : 'done') : 'pending';
+    const label = l.expired && l.status === 'Pending' ? 'Expired' : (l.status === 'Pending' ? 'Not opened' : l.status);
+    const extra = l.warnedAt ? ' · warned' : '';
+    return `<span class="pill ${cls}">${esc(l.type)}: ${esc(label)}${extra}</span> <span class="muted">sent ${day(l.createdAt)}, expires ${day(l.expiresAt)}</span>`;
+  }
+
+  function renderApps(apps) {
+    if (!apps.length) {
+      $('#apps').innerHTML = '<p class="muted">No manageable app registrations found. In OwnedBy mode the managed identity must be an owner of the app registrations it should manage — see the documentation.</p>';
+      return;
+    }
+    const rows = apps.map((a, i) => `
+      <tr class="${a.manageable ? '' : 'unmanageable'}">
+        <td><strong>${esc(a.displayName) || '(no name)'}</strong><br><code>${esc(a.clientId)}</code>
+          ${a.manageable ? '' : '<br><span class="error">not visible to the managed identity anymore</span>'}</td>
+        <td>${a.linked ? `secrets: ${a.secrets.count} (latest exp ${day(a.secrets.latestExpiry)})<br>certs: ${a.certificates.count} (latest exp ${day(a.certificates.latestExpiry)})`
+                       : `secrets: ${a.secrets.count}<br>certs: ${a.certificates.count}`}</td>
+        <td>${a.linked ? `rotate ${a.rotateBeforeDays}d${a.rotateOverridden ? '*' : ''} / warn ${a.warnBeforeDays}d${a.warnOverridden ? '*' : ''}<br><span class="muted">${esc(a.contactEmails ?? '')}</span>` : '<span class="muted">not linked</span>'}</td>
+        <td>${(a.links ?? []).slice(0, 4).map(linkPill).join('<br>') || '<span class="muted">—</span>'}</td>
+        <td style="white-space:nowrap">
+          ${a.linked
+            ? `<button class="small" onclick="triggerFlow('${a.clientId}','secret')">New secret</button>
+               <button class="small" onclick="triggerFlow('${a.clientId}','certificate')">New certificate</button>
+               <button class="small secondary" onclick="toggleSettings(${i})">Settings</button>
+               <button class="small danger" onclick="unlinkApp('${a.clientId}')">Unlink</button>`
+            : `<button class="small" onclick="toggleLink(${i})">Link…</button>`}
+        </td>
+      </tr>
+      <tr id="panel-${i}" class="hidden"><td colspan="5">
+        ${a.linked ? settingsForm(a) : linkForm(a)}
+      </td></tr>`).join('');
+    $('#apps').innerHTML = `<table>
+      <thead><tr><th>App registration</th><th>Credentials</th><th>Rotation settings</th><th>Delivery links</th><th></th></tr></thead>
+      <tbody>${rows}</tbody></table>
+      <p class="muted">* = per-app override of the environment default.</p>`;
+  }
+
+  function linkForm(a) {
+    return `<div class="formrow">
+      <div style="flex:2"><label>Contact emails (semicolon-separated)</label><input id="link-contacts-${a.clientId}" placeholder="ops@customer.com"></div>
+      <div style="flex:0"><label>&nbsp;</label><label style="margin:0"><input type="checkbox" id="link-secret-${a.clientId}" style="width:auto"> create secret now</label>
+        <label style="margin:0"><input type="checkbox" id="link-cert-${a.clientId}" style="width:auto"> request certificate now</label></div>
+      <div style="flex:0"><label>&nbsp;</label><button class="small" onclick="linkApp('${a.clientId}')">Link</button></div>
+    </div>`;
+  }
+
+  function settingsForm(a) {
+    return `<div class="formrow">
+      <div><label>rotate-before days (empty = default)</label><input id="set-rotate-${a.clientId}" type="number" min="1" max="365" value="${a.rotateOverridden ? a.rotateBeforeDays : ''}"></div>
+      <div><label>warn-before days (empty = default)</label><input id="set-warn-${a.clientId}" type="number" min="1" max="365" value="${a.warnOverridden ? a.warnBeforeDays : ''}"></div>
+      <div style="flex:2"><label>Contact emails</label><input id="set-contacts-${a.clientId}" value="${esc(a.contactEmails ?? '')}"></div>
+      <div style="flex:0"><label>&nbsp;</label><button class="small" onclick="saveSettings('${a.clientId}')">Save</button></div>
+    </div>`;
+  }
+
+  window.toggleLink = window.toggleSettings = (i) => $(`#panel-${i}`).classList.toggle('hidden');
+
+  window.linkApp = async (clientId) => {
+    try {
+      await api('POST', `/api/admin/apps/${clientId}/link`, {
+        contactEmails: document.getElementById(`link-contacts-${clientId}`).value,
+        createSecret: document.getElementById(`link-secret-${clientId}`).checked,
+        requestCertificate: document.getElementById(`link-cert-${clientId}`).checked,
+      });
+      toast(`Linked ${clientId}.`);
+    } catch (e) { toast(e.message, true); }
+    loadApps();
+  };
+
+  window.unlinkApp = async (clientId) => {
+    if (!confirm('Unlink this app registration? Regnroll metadata and pending links are removed; the app registration itself and its credentials are NOT touched.')) return;
+    try { await api('POST', `/api/admin/apps/${clientId}/unlink`); toast(`Unlinked ${clientId}.`); }
+    catch (e) { toast(e.message, true); }
+    loadApps();
+  };
+
+  window.saveSettings = async (clientId) => {
+    const num = (v) => v === '' ? null : Number(v);
+    try {
+      await api('PUT', `/api/admin/apps/${clientId}/settings`, {
+        rotateBeforeDays: num(document.getElementById(`set-rotate-${clientId}`).value),
+        warnBeforeDays: num(document.getElementById(`set-warn-${clientId}`).value),
+        contactEmails: document.getElementById(`set-contacts-${clientId}`).value,
+      });
+      toast('Settings saved.');
+    } catch (e) { toast(e.message, true); }
+    loadApps();
+  };
+
+  window.triggerFlow = async (clientId, type) => {
+    try {
+      await api('POST', `/api/admin/apps/${clientId}/${type}`);
+      toast(type === 'secret' ? 'New secret created and delivery email sent.' : 'Certificate upload link emailed.');
+    } catch (e) { toast(e.message, true); }
+    loadApps();
+  };
+
+  $('#runScan').addEventListener('click', async () => {
+    $('#runScan').disabled = true;
+    try {
+      const s = await api('POST', '/api/admin/scan');
+      toast(`Scan: ${s.appsScanned} apps · ${s.secretsRotated} secrets rotated · ${s.certificateRequestsSent} cert requests · ${s.warningsSent} warnings · ${s.credentialsRemoved} expired removed · ${s.linksPurged} links purged · ${s.errors} errors`);
+    } catch (e) { toast(e.message, true); }
+    $('#runScan').disabled = false;
+    loadApps();
+  });
+
+  $('#refresh').addEventListener('click', loadApps);
+
+  // ---------- templates ----------
+  let templates = [];
+  async function loadTemplates() {
+    try {
+      templates = await api('GET', '/api/admin/templates');
+      const sel = $('#tplKey');
+      sel.innerHTML = templates.map((t) => `<option value="${t.key}">${t.key}${t.isOverridden ? ' (customized)' : ''}</option>`).join('');
+      showTemplate();
+    } catch (e) { toast(e.message, true); }
+  }
+
+  function showTemplate() {
+    const t = templates.find((x) => x.key === $('#tplKey').value) ?? templates[0];
+    if (!t) return;
+    $('#tplSubject').value = t.subject;
+    $('#tplBody').value = t.htmlBody;
+    $('#tplState').textContent = t.isOverridden ? 'customized' : 'embedded default';
+  }
+
+  $('#tplKey').addEventListener('change', showTemplate);
+  $('#tplSave').addEventListener('click', async () => {
+    try {
+      await api('PUT', `/api/admin/templates/${$('#tplKey').value}`, { subject: $('#tplSubject').value, htmlBody: $('#tplBody').value });
+      toast('Template override saved.');
+      loadTemplates();
+    } catch (e) { toast(e.message, true); }
+  });
+  $('#tplReset').addEventListener('click', async () => {
+    try {
+      await api('DELETE', `/api/admin/templates/${$('#tplKey').value}`);
+      toast('Template reset to the embedded default.');
+      loadTemplates();
+    } catch (e) { toast(e.message, true); }
+  });
+
+  loadApps();
+  loadTemplates();
+</script>
+</body>
+</html>

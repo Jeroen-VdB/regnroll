@@ -1,0 +1,16 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
+    "REGNROLL_TIMER_SCHEDULE": "0 0 6 * * *",
+    "Regnroll__PublicBaseUrl": "http://localhost:7071",
+    "Regnroll__DataTablesConnectionString": "UseDevelopmentStorage=true",
+    "Regnroll__GraphMode": "OwnedBy",
+    "Regnroll__ManagedIdentityPrincipalId": "",
+    "Regnroll__AcsEndpoint": "",
+    "Regnroll__SenderAddress": "",
+    "Regnroll__RotateBeforeDays": "30",
+    "Regnroll__WarnBeforeDays": "7"
+  }
+}

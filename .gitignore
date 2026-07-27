@@ -427,3 +427,21 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# drawio local files
+*.drawio.bkp
+
+# Azure Functions local settings (contains secrets)
+local.settings.json
+
+# Azure Developer CLI environment state
+.azure/
+
+# Astro / Starlight build output
+docs/.astro/
+docs/dist/
+
+# Azurite
+__blobstorage__
+__queuestorage__
+__azurite_*.json

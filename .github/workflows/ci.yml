@@ -1,0 +1,42 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Start Azurite (table storage integration tests)
+        run: |
+          npm install -g azurite
+          azurite --silent --location /tmp/azurite &
+
+      - name: Build
+        run: dotnet build Regnroll.slnx --configuration Release --nologo
+
+      - name: Test
+        run: dotnet test Regnroll.slnx --configuration Release --no-build --nologo
+
+  docs-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build docs
+        working-directory: docs
+        run: |
+          npm ci
+          npm run build

@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Retrieve secret — Regnroll</title>
+  <link rel="stylesheet" href="/assets/site.css">
+</head>
+<body>
+<main class="card">
+  <h1>Secure secret retrieval</h1>
+
+  <div id="intro">
+    <p>A one-time client secret is waiting for you. Revealing it <strong>consumes this link permanently</strong> —
+      make sure you are ready to store the secret in your configuration now.</p>
+    <p>Opening this page did nothing by itself; the secret is only released when you press the button below.</p>
+    <p id="nokey" class="error hidden">This URL is missing its decryption key (the part after <code>#</code>).
+      Use the complete, unmodified link from your email.</p>
+    <p><button id="reveal">Reveal secret</button></p>
+    <p id="status" class="error hidden"></p>
+  </div>
+
+  <div id="result" class="hidden">
+    <h2>Client secret</h2>
+    <pre id="secret" class="secretbox"></pre>
+    <p><button id="copy" class="secondary">Copy to clipboard</button></p>
+    <p class="muted">Client id: <code id="clientId"></code> <span id="expwrap" class="hidden">· new secret valid until <span id="expires"></span></span></p>
+    <p class="warn">The secret has now been deleted from the server and cannot be shown again. Store it safely.</p>
+  </div>
+
+  <div id="final" class="hidden">
+    <p id="finalMessage" class="error"></p>
+    <p class="muted">If you believe this is a mistake, contact the IT support team that manages this application.</p>
+  </div>
+
+  <details>
+    <summary>Automate this retrieval (for machines)</summary>
+    <p class="muted">The same one-time claim can be done headless — split the link at <code>#</code> into id and key:</p>
+    <pre id="curl" class="codeblock"></pre>
+  </details>
+</main>
+
+<script>
+  const id = location.pathname.split('/').filter(Boolean).pop();
+  const key = decodeURIComponent(location.hash.slice(1));
+  const $ = (s) => document.querySelector(s);
+
+  $('#curl').textContent =
+    `curl -sS -X POST ${location.origin}/api/claim \\\n` +
+    `  -H "Content-Type: application/json" \\\n` +
+    `  -d '{"id":"${id}","key":"<key after # in the link>"}'`;
+
+  if (!key) {
+    $('#nokey').classList.remove('hidden');
+    $('#reveal').disabled = true;
+  }
+
+  $('#reveal').addEventListener('click', async () => {
+    $('#reveal').disabled = true;
+    $('#status').classList.add('hidden');
+    try {
+      const res = await fetch('/api/claim', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, key }),
+      });
+      const body = await res.json();
+      if (res.ok) {
+        $('#intro').classList.add('hidden');
+        $('#result').classList.remove('hidden');
+        $('#secret').textContent = body.secret;
+        $('#clientId').textContent = body.clientId ?? '';
+        if (body.newSecretExpiresAt) {
+          $('#expwrap').classList.remove('hidden');
+          $('#expires').textContent = new Date(body.newSecretExpiresAt).toISOString().slice(0, 10);
+        }
+      } else if (body.error === 'invalid_key') {
+        $('#status').textContent = body.message;
+        $('#status').classList.remove('hidden');
+        $('#reveal').disabled = false;
+      } else {
+        $('#intro').classList.add('hidden');
+        $('#final').classList.remove('hidden');
+        $('#finalMessage').textContent = body.message ?? 'This link is no longer valid.';
+      }
+    } catch {
+      $('#status').textContent = 'Network error — please try again.';
+      $('#status').classList.remove('hidden');
+      $('#reveal').disabled = false;
+    }
+  });
+
+  $('#copy').addEventListener('click', async () => {
+    await navigator.clipboard.writeText($('#secret').textContent);
+    $('#copy').textContent = 'Copied ✓';
+  });
+</script>
+</body>
+</html>
