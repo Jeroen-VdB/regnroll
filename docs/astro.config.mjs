@@ -11,6 +11,13 @@ export default defineConfig({
     starlight({
       title: 'Regnroll',
       description: 'Entra ID app registration secret & certificate automation',
+      social: [
+        {
+          icon: 'github',
+          label: 'GitHub',
+          href: 'https://github.com/Jeroen-VdB/regnroll',
+        },
+      ],
       sidebar: [
         {
           label: 'Start here',
