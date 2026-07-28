@@ -44,10 +44,18 @@ $graphSpId = az ad sp show --id 00000003-0000-0000-c000-000000000000 --query id 
 
 Write-Host "==> Granting $roleName to principal $PrincipalId"
 $body = @{ principalId = $PrincipalId; resourceId = $graphSpId; appRoleId = $appRoleId } | ConvertTo-Json -Compress
-$result = az rest --method post `
-    --url "https://graph.microsoft.com/v1.0/servicePrincipals/$PrincipalId/appRoleAssignments" `
-    --headers 'Content-Type=application/json' `
-    --body $body 2>&1
+# Pass the body via a file: on Windows, inline JSON loses its quotes going
+# through az.cmd's %* forwarding, and Graph then rejects the payload.
+$bodyFile = New-TemporaryFile
+try {
+    Set-Content -Path $bodyFile -Value $body -Encoding utf8NoBOM -NoNewline
+    $result = az rest --method post `
+        --url "https://graph.microsoft.com/v1.0/servicePrincipals/$PrincipalId/appRoleAssignments" `
+        --headers 'Content-Type=application/json' `
+        --body "@$($bodyFile.FullName)" 2>&1
+} finally {
+    Remove-Item $bodyFile -Force -ErrorAction SilentlyContinue
+}
 if ($LASTEXITCODE -ne 0) {
     if ("$result" -match 'Permission being assigned already exists') {
         Write-Host '    already granted — nothing to do.'
