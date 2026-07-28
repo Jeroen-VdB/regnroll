@@ -1,3 +1,5 @@
+**⚠️ Regnoll is not yet production ready.**
+
 # Regnroll
 
 **Entra ID app registration secret & certificate automation** — a cheap, simple, self-hostable Azure Function that rotates app registration credentials before they expire and delivers them to your customers through one-time encrypted links.
