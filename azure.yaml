@@ -7,9 +7,9 @@ services:
     project: src/Regnroll.App
     language: dotnet
     host: function
-hooks:
-  postprovision:
-    shell: pwsh
-    run: ./infra/scripts/postprovision.ps1
-    interactive: true
-    continueOnError: false
+# hooks:
+#   postprovision:
+#     shell: pwsh
+#     run: ./infra/scripts/postprovision.ps1
+#     interactive: true
+#     continueOnError: false

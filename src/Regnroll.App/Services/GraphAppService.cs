@@ -72,6 +72,14 @@ public sealed class GraphAppService(GraphServiceClient graph, IOptions<RegnrollO
             await Iterate(page, apps, ct);
         }
 
+        // Without the Graph app role, ownedObjects can still succeed but returns limited
+        // profiles (id only, no appId/displayName) — fail with guidance instead of
+        // handing the UI unusable rows.
+        if (apps.Count > 0 && apps.All(a => string.IsNullOrEmpty(a.AppId)))
+        {
+            throw new RegnrollGraphException(GraphErrorMapper.LimitedProfile(o.UseTenantWideMode), 403);
+        }
+
         return apps.Select(ToModel).ToList();
     }
 
@@ -239,5 +247,11 @@ public static class GraphErrorMapper
             404 => $"Graph could not find the target while trying to {operation}. The app registration may have been deleted, or in OwnedBy mode it may not be owned by the managed identity. See {DocsUrl}",
             _ => $"Graph call failed while trying to {operation}: {code ?? "unknown"} — {rawMessage ?? "no details"}.",
         };
+    }
+
+    public static string LimitedProfile(bool tenantWideMode)
+    {
+        var permission = tenantWideMode ? "Application.ReadWrite.All" : "Application.ReadWrite.OwnedBy";
+        return $"Graph returned the app registrations without their properties (limited profile), which means the managed identity has not been granted the app-only permission {permission} (admin consent). Run infra/scripts/grant-graph-permissions.ps1, then restart the app. See {DocsUrl}";
     }
 }

@@ -31,7 +31,15 @@ builder.Services.AddOptions<RegnrollOptions>()
     .ValidateOnStart();
 
 builder.Services.AddSingleton(TimeProvider.System);
-builder.Services.AddSingleton<TokenCredential>(new DefaultAzureCredential());
+// VisualStudioCredential is excluded because Visual Studio can hand out Graph tokens
+// issued by the MSA passthrough tenant, which Graph rejects ("Unsupported token").
+// Don't switch to AZURE_TOKEN_CREDENTIALS in local.settings.json instead: the Functions
+// host bundles an older Azure.Identity that throws on credential-name values, killing
+// the timer trigger's ScheduleMonitor.
+builder.Services.AddSingleton<TokenCredential>(new DefaultAzureCredential(new DefaultAzureCredentialOptions
+{
+    ExcludeVisualStudioCredential = true,
+}));
 
 builder.Services.AddSingleton(sp =>
 {

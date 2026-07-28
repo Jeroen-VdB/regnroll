@@ -49,4 +49,22 @@ public class GraphErrorMapperTests
         Assert.Contains("BadRequest", message);
         Assert.Contains("key too large", message);
     }
+
+    [Fact]
+    public void LimitedProfile_ExplainsMissingPermissionGrant()
+    {
+        var message = GraphErrorMapper.LimitedProfile(tenantWideMode: false);
+
+        Assert.Contains("Application.ReadWrite.OwnedBy", message);
+        Assert.Contains("grant-graph-permissions.ps1", message);
+        Assert.Contains(GraphErrorMapper.DocsUrl, message);
+    }
+
+    [Fact]
+    public void LimitedProfile_InTenantWideMode_NamesTheAllPermission()
+    {
+        var message = GraphErrorMapper.LimitedProfile(tenantWideMode: true);
+
+        Assert.Contains("Application.ReadWrite.All", message);
+    }
 }
